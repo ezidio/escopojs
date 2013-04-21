@@ -1,0 +1,51 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="bootstrap/css/bootstrap.min.css" ></link>
+    </head>
+    <body>
+
+    
+        <div id="content1" class="scope-context">
+          <button>Botão 1</button>
+          <div class="log"></div>
+        
+        </div>
+        
+        <div id="content2" class="scope-context">
+          <button>Botão 2</button>
+          <div class="log"></div>
+        </div>
+
+        <script src="lib/require.js"></script>
+        <script src="lib/zepto.js" ></script>
+        <script src="frame.js" ></script>
+        <script type="text/javascript">
+
+
+            $(function($){
+              
+              
+              Scoped.View.extend({
+                '$el click' : function() {
+                  var txt = this.$el.text();
+                  this.$scope.trigger('console:log', ['clicando com o '+txt]);
+                }
+              }).bindTo('button');
+              
+              var LogPanel = Scoped.View.extend({
+                '$scope console:log' : function(ev, msg) {
+                  this.$el.append('<p>'+msg+'</p>');
+                }
+              });
+
+              //LogButton.bindTo('button');
+              LogPanel.bindTo('.log');
+              
+             
+              
+            });
+
+
+        </script>
+    </body>
+</html>

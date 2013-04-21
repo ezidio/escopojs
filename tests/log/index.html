@@ -1,0 +1,39 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="bootstrap/css/bootstrap.min.css" ></link>
+    </head>
+    <body>
+
+    
+        <div id="content1" class="scope-context">
+          <button>Botão 1</button>
+          <div class="log"></div>
+        
+        </div>
+        
+        <div id="content2" class="scope-context">
+          <button>Botão 2</button>
+          <div class="log"></div>
+        </div>
+
+        <script src="../../lib/zepto.js"></script>
+        <script src="../../lib/require.js"></script>
+        <script type="text/javascript">
+            requirejs.config({
+              baseUrl : '../../',
+              paths : {
+                text : 'lib/require-text'
+              },
+              shim : {}
+            });
+
+            require(['tests/log/log'], function(Log) {
+              Log.Button.bindTo('button');
+              Log.Panel.bindTo('.log');
+            })
+
+
+        </script>
+    </body>
+</html>
+
