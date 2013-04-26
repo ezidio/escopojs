@@ -1,0 +1,55 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="bootstrap/css/bootstrap.min.css" ></link>
+    </head>
+    <body>
+
+        <a href="#">Home</a>
+        <a href="#teste">Teste</a>
+        <a href="#contact/1">Contato</a>
+        <a href="#contact/2">Contato</a>
+        <a href="#contact/3">Contato</a>
+
+        <div id="teste"></div>
+        <hr />
+        <div id="log"></div>
+
+
+        <script src="../../lib/zepto.js"></script>
+        <script src="../../lib/require.js"></script>
+        <script type="text/javascript">
+            requirejs.config({
+              baseUrl : '../../',
+              paths : {
+                text : 'lib/require-text'
+              },
+              shim : {}
+            });
+
+            require(['tests/route/escopo.path', 'lib/path'], function(Escopo, Path) {
+                
+                Escopo.View.extend({
+                  '$route #teste' : function() {
+                    this.$el.text('teste');
+                  },
+                  '$route #contact/:id' : function(params) {
+                    this.$el.text('contato '+params.id);
+                  }
+                }).bindTo('#teste');
+
+                Escopo.View.extend({
+                  '$scope route:change' : function(ev, route, params) {
+                    this.$el.append('<p>'+route+' - '+params.id+'</p>');
+                  }
+                }).bindTo('#log');
+
+
+                Path.listen();
+
+            });
+
+
+        </script>
+    </body>
+</html>
+
