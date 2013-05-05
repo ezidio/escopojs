@@ -3,7 +3,13 @@ window.Escopo = (function($) {
     /**
      * Extension Method
      */
-    var _extend = function(protoProps, staticProps) {
+    var _extend = function(staticProps, protoProps) {
+
+        if (!protoProps) {
+          protoProps = staticProps;
+          staticProps = {};
+        }
+
         var parent = this;
         var child = function(){ return parent.apply(this, arguments); };
         $.extend(child, parent, staticProps);
@@ -73,7 +79,6 @@ window.Escopo = (function($) {
         'plugins' : []
     });
 
-
     /**
      * Controller
      * ----------
@@ -81,7 +86,7 @@ window.Escopo = (function($) {
     var Controller = function(params, scope) {
 
         this._params = $.extend({}, params);
-        this.$scope = $(scope || this.$scope || window);
+        this.$scope = $(scope || this.$scope || 'body');
 
         // Configure method plugins
         _configurePlugins(this, Controller.plugins);
@@ -125,11 +130,16 @@ window.Escopo = (function($) {
     /**
      * Plugin to configure Element events
      */
-    var _REGEX_EL = new RegExp("^[$]el\\s([a-zA-Z][a-zA-Z0-9]*([:][-a-zA-Z0-9_]+)*)$");
+    var _REGEX_EL = new RegExp("^[$]el(\\(.*\\))?\\s([a-zA-Z][a-zA-Z0-9]*([:][-a-zA-Z0-9_]+)*)$");
     var _ElementEventsPlugin = function(methodName, object) {
          if (_REGEX_EL.test(methodName)) {
-            var event = _REGEX_EL.exec(methodName)[1];
-            object.$el.bind(event, object[methodName]);
+            var regexParts = _REGEX_EL.exec(methodName);
+            var $el = object.$el;
+            if (regexParts[1]) {
+              $el = $el.find(regexParts[1].substr(1, regexParts[1].length - 2));
+            }
+
+            $el.bind(regexParts[2], object[methodName]);
         }
     }
     View.plugins.push(_ElementEventsPlugin); // Applied only into views

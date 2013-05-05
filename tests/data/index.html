@@ -1,0 +1,122 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="bootstrap/css/bootstrap.min.css" ></link>
+    </head>
+    <body>
+
+        <a href="#list">Listar</a>
+        <a href="#limpa">Limpar</a>
+        <ul id="list">
+        </ul>
+        <div id="resume"></div>
+
+        <input type="text" placeholder="Adicione um item" id="txtNew"/>
+
+
+        <script src="../../lib/zepto.js"></script>
+        <script src="../../lib/require.js"></script>
+        <script type="text/javascript">
+            requirejs.config({
+              baseUrl : '../../',
+              paths : {
+                text : 'lib/require-text'
+              },
+              shim : {}
+            });
+
+            require(['escopo','tests/data/escopo.data', 'tests/data/escopo.data.router', 'lib/path', 'lib/handlebars'], 
+              function(Escopo, Data, DataRouter, Path, Handlebars) {
+                
+                
+
+                var TodoItem = Escopo.View.extend({
+                   'template' : Handlebars.compile('<p>{{value}} <input type="checkbox" /> <a href="#">remover</a></p>'),
+                   'initialize' : function(el, params) {
+                     this._model = params.model;
+                     this.render();
+                   },
+                   'render' : function() {
+                     this.$el.html(this.template(this._model));
+                     this.$el.find('input').change(this.updateStatus);
+                     this.$el.find('a').click(this.remove);
+                     // Check the checkbox if todo item is ready
+                     if (this._model.ready) {
+                       this.$el.find('input').attr('checked', 'checked');
+                     }
+                   },
+                   'remove' : function() {
+                      this.$scope.trigger('data:remove', [this._model.id]);
+                   },
+                   '$scope data:remove:success' : function(ev, model) {
+                     console.log('sera que removeu o '+this._model.value+'?');
+                     if (model.id == this._model.id) {
+                       this.$el.remove();
+                     }
+                   },
+                   '$el dblclick' : function() {
+                     alert('editar?');
+                   },
+                   'updateStatus' : function() {
+                     this._model.ready = this.$el.find('input').is(':checked');
+                     this.$scope.trigger('data:update', [this._model]);
+                   }
+                });
+
+
+                Escopo.View.extend({
+                  '$el change' : function(ev) {
+                    var value = this.$el.val();
+                    var model = {'value' : value, 'ready' : false};
+                    this.$scope.trigger('data:insert', [model]);
+                    this.$el.val('');
+                  }
+                }).bindTo('#txtNew')
+
+                Escopo.View.extend({
+                  '$scope data:change:success' : function(ev, data) {
+                      var concluidos = 0;
+                      for (var i = 0;i < data.length;i++) {
+                        if (data[i].ready) {
+                          concluidos++;
+                        }
+                      }
+                      if (concluidos == data.length) {
+                        this.$el.text('Todos os '+data.length+' itens foram concluidos!');
+                      } else {
+                        this.$el.text(data.length+ ' itens, sendo '+concluidos+' concluidos.');  
+                      }
+                      
+                  }
+                }).bindTo('#resume');
+
+                Escopo.View.extend({
+                  '$scope data:list:success' : function(ev, data) {
+                    this.render(data);
+                  },
+                  '$scope data:insert:success' : function(ev, model) {
+                    var $item = $('<div />');
+                    TodoItem.bindTo($item, {'model' : model});
+                    this.$el.append($item);
+                  },
+                  'render' : function(data) {
+                    this.$el.html(''); // Clear list
+                    for (var i = 0; i < data.length; i++) {
+                    
+                    };
+                  },
+                  '$route limpa' : function() {
+                    this.$el.html('');
+                  }
+                }).bindTo('#list');
+
+                new Data();
+                new DataRouter();
+                Path.listen();
+
+            });
+
+
+        </script>
+    </body>
+</html>
+
