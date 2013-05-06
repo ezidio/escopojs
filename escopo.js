@@ -1,5 +1,7 @@
 window.Escopo = (function($) {
 
+    var _objectId = 0;
+
     /**
      * Extension Method
      */
@@ -17,22 +19,36 @@ window.Escopo = (function($) {
         return child;
     };
 
+
+
     /**
      * Utilitary Function to internally configure method plugins to a instance
      */
-    var _configurePlugins = function(instance, pluginList) {
-        // Configure plugins
-        for (methodName in instance) {
-            if ($.isFunction(instance[methodName])) {
-                // Create  method proxy
-                instance[methodName] = $.proxy(instance[methodName], instance);
+    var _onCreate = function(instance, clazz) {
 
-                // Iterate over plugins.
-                for (var i = 0; i < pluginList.length; i++) {
-                    pluginList[i](methodName, instance);
-                }
-            }
+      // Create a object id. This will be used to create a namespace on
+      // object event's
+      instance._id = '_id_'+(_objectId++);
+
+      // Create method proxy for all clazz functions
+      for (methodName in instance) {
+        if ($.isFunction(instance[methodName])) {
+          instance[methodName] = $.proxy(instance[methodName], instance);
         }
+      }
+
+      // Execute plugins
+      var plugins = clazz.plugins;
+      for (var i = 0;i < plugins.length; i++) {
+        plugins[i].onCreate.apply(plugins[i], [instance, clazz]);
+      }
+    }
+
+    var _onDestroy = function(instance, clazz) {
+      var plugins = clazz.plugins;
+      for (var i = 0;i < plugins.length; i++) {
+        plugins[i].onDestroy.apply(plugins[i], [instance, clazz]);
+      }
     }
 
     /**
@@ -43,7 +59,6 @@ window.Escopo = (function($) {
         var $scope = $(el).parents('.scope-context');
         return ($scope.length == 0) ? false : $scope[0];
     }
-
 
     /**
      * View
@@ -56,14 +71,18 @@ window.Escopo = (function($) {
         this.$scope = $(scope || this.$scope|| _parentScope(this.$el) || 'body');
 
         // Configure method plugins
-        _configurePlugins(this, View.plugins);
+        _onCreate(this, View);
 
         // Call "initialize" method
         this.initialize(this.$el, this._params, this.$scope);
     }
 
     $.extend(View.prototype, {
-        initialize : function() {}
+        initialize : function() {},
+        destroy : function() {
+          _onDestroy(this, Controller);
+          this.$el.remove();
+        }
     });
 
     $.extend(View, {
@@ -76,7 +95,8 @@ window.Escopo = (function($) {
                 new _view(element, params, scope);
             });
         },
-        'plugins' : []
+        'plugins' : [],
+        'methodPlugins' : []
     });
 
     /**
@@ -89,7 +109,7 @@ window.Escopo = (function($) {
         this.$scope = $(scope || this.$scope || 'body');
 
         // Configure method plugins
-        _configurePlugins(this, Controller.plugins);
+        _onCreate(this, Controller);
 
         // Call "initialize" method
         this.initialize(this._params, this.$scope);
@@ -97,41 +117,81 @@ window.Escopo = (function($) {
 
     $.extend(Controller.prototype, {
         initialize : function() {},
+        destroy : function() {
+          _onDestroy(this, Controller);
+        }
+    });
+
+    $.extend(Controller, {
+        // Add extend funcionality
+        'extend' : _extend,
         // Flight's like element bind
         'bindTo' : function(params, scope) {
             var _controller = this;
             $(element).each(function(index, element) {
                 new _controller(params, scope);
             });
-        }
-    });
-
-    $.extend(Controller, {
-        'extend' : _extend,
+        },
         'plugins' : []
     });
 
+
+    var _MethodPlugins = {
+      'configureMethods' : function(type, instance, clazz) {
+          var methodPlugins = clazz.methodPlugins;
+          // Configure plugins
+          for (methodName in instance) {
+            if ($.isFunction(instance[methodName])) {
+              // Iterate over plugins.
+              for (var i = 0; i < methodPlugins.length; i++) {
+                methodPlugins[i][type].apply(this, [methodName, instance]);
+              }
+            }
+          }
+      },
+      'onCreate' : function(instance, clazz) {
+        this.configureMethods('onCreate', instance, clazz);
+      },
+      'onDestroy' : function(instance, clazz) {
+        this.configureMethods('onDestroy', instance, clazz);
+      }
+    }
+    // Applied on View and Controller
+    View.plugins.push(_MethodPlugins);
+    View.methodPlugins = [];
+    Controller.plugins.push(_MethodPlugins);
+    Controller.methodPlugins = [];
 
     /**
      * Plugin to configure scope events
      */
     var _REGEX_SCOPE = new RegExp("^[$]scope\\s([a-zA-Z][a-zA-Z0-9]*([:][a-zA-Z0-9_]+)*$)");
-    var _ScopeEventsPlugin = function(methodName, object) {
+    var _ScopeEventsPlugin = {
+      'onCreate' : function(methodName, object) {
+          if (_REGEX_SCOPE.test(methodName)) {
+              var event = _REGEX_SCOPE.exec(methodName)[1]+'.'+object._id;
+              object.$scope.on(event, object[methodName]);
+          }
+      },
+      'onDestroy' : function(methodName, object) {
         if (_REGEX_SCOPE.test(methodName)) {
-            var event = _REGEX_SCOPE.exec(methodName)[1];
-            object.$scope.bind(event, object[methodName]);
+          console.log('Destruindo o evento '+methodName);
+          var event = _REGEX_SCOPE.exec(methodName)[1]+'.'+object._id;
+          object.$scope.off(event, object[methodName]);
         }
-    }
+      }
+    } 
     // Applied on View and Controller
-    View.plugins.push(_ScopeEventsPlugin);
-    Controller.plugins.push(_ScopeEventsPlugin);
+    View.methodPlugins.push(_ScopeEventsPlugin);
+    Controller.methodPlugins.push(_ScopeEventsPlugin);
 
 
     /**
      * Plugin to configure Element events
      */
     var _REGEX_EL = new RegExp("^[$]el(\\(.*\\))?\\s([a-zA-Z][a-zA-Z0-9]*([:][-a-zA-Z0-9_]+)*)$");
-    var _ElementEventsPlugin = function(methodName, object) {
+    var _ElementEventsPlugin = {
+      'onCreate' : function(methodName, object) {
          if (_REGEX_EL.test(methodName)) {
             var regexParts = _REGEX_EL.exec(methodName);
             var $el = object.$el;
@@ -141,8 +201,12 @@ window.Escopo = (function($) {
 
             $el.bind(regexParts[2], object[methodName]);
         }
+      },
+      'onDestroy' : function(methodName, object) {
+        console.log('Sera que destruo o vinculo com o elemento?');
+      }
     }
-    View.plugins.push(_ElementEventsPlugin); // Applied only into views
+    View.methodPlugins.push(_ElementEventsPlugin); // Applied only into views
 
 
     return {

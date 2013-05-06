@@ -13,7 +13,8 @@
         <input type="text" placeholder="Adicione um item" id="txtNew"/>
 
 
-        <script src="../../lib/zepto.js"></script>
+        <!--<script src="../../lib/zepto.js"></script>-->
+        <script src="../../lib/jquery-1.7.1.min.js"></script>
         <script src="../../lib/require.js"></script>
         <script type="text/javascript">
             requirejs.config({
@@ -24,8 +25,13 @@
               shim : {}
             });
 
-            require(['escopo','tests/data/escopo.data', 'tests/data/escopo.data.router', 'lib/path', 'lib/handlebars'], 
-              function(Escopo, Data, DataRouter, Path, Handlebars) {
+            require([
+              'escopo',
+              'tests/data/escopo.data', 
+              'tests/data/escopo.data.router', 
+              'lib/path', 
+              'lib/handlebars'
+              ], function(Escopo, Data, DataRouter, Path, Handlebars) {
                 
                 
 
@@ -50,7 +56,10 @@
                    '$scope data:remove:success' : function(ev, model) {
                      console.log('sera que removeu o '+this._model.value+'?');
                      if (model.id == this._model.id) {
-                       this.$el.remove();
+                       this.destroy();
+                       console.log('Sim, removeu =(');
+                     } else {
+                       console.log('Não removeu!');
                      }
                    },
                    '$el dblclick' : function() {
@@ -62,17 +71,16 @@
                    }
                 });
 
-
-                Escopo.View.extend({
+                var TodoForm = Escopo.View.extend({
                   '$el change' : function(ev) {
                     var value = this.$el.val();
                     var model = {'value' : value, 'ready' : false};
                     this.$scope.trigger('data:insert', [model]);
                     this.$el.val('');
                   }
-                }).bindTo('#txtNew')
+                });
 
-                Escopo.View.extend({
+                var TodoResume = Escopo.View.extend({
                   '$scope data:change:success' : function(ev, data) {
                       var concluidos = 0;
                       for (var i = 0;i < data.length;i++) {
@@ -87,9 +95,9 @@
                       }
                       
                   }
-                }).bindTo('#resume');
+                });
 
-                Escopo.View.extend({
+                var TodoList = Escopo.View.extend({
                   '$scope data:list:success' : function(ev, data) {
                     this.render(data);
                   },
@@ -107,7 +115,12 @@
                   '$route limpa' : function() {
                     this.$el.html('');
                   }
-                }).bindTo('#list');
+                });
+
+                // Itens de Todo
+                TodoForm.bindTo('#txtNew');
+                TodoResume.bindTo('#resume');
+                TodoList.bindTo('#list');
 
                 new Data();
                 new DataRouter();
