@@ -1,55 +1,63 @@
 window.Escopo = (function($) {
 
-    var _objectId = 0;
 
-    /**
-     * Extension Method
-     */
-    var _extend = function(staticProps, protoProps) {
-
-        if (!protoProps) {
-          protoProps = staticProps;
-          staticProps = {};
-        }
-
-        var parent = this;
-        var child = function(){ return parent.apply(this, arguments); };
-        $.extend(child, parent, staticProps);
-        $.extend(child.prototype, this.prototype, protoProps);
-        return child;
-    };
+  var _globalObjectId = 0;
 
 
 
-    /**
-     * Utilitary Function to internally configure method plugins to a instance
-     */
-    var _onCreate = function(instance, clazz) {
+  /**
+   * Extension Method
+   */
+  var _extend = function(staticProps, protoProps) {
 
-      // Create a object id. This will be used to create a namespace on
-      // object event's
-      instance._id = '_id_'+(_objectId++);
-
-      // Create method proxy for all clazz functions
-      for (methodName in instance) {
-        if ($.isFunction(instance[methodName])) {
-          instance[methodName] = $.proxy(instance[methodName], instance);
-        }
+      if (!protoProps) {
+        protoProps = staticProps;
+        staticProps = {};
       }
 
-      // Execute plugins
-      var plugins = clazz.plugins;
-      for (var i = 0;i < plugins.length; i++) {
-        plugins[i].onCreate.apply(plugins[i], [instance, clazz]);
+      var parent = this;
+      var child = function(){ return parent.apply(this, arguments); };
+      $.extend(child, parent, staticProps);
+      $.extend(child.prototype, this.prototype, protoProps);
+      return child;
+  };
+
+
+
+  /**
+   * Utilitary Function to internally configure method plugins to a instance
+   */
+  var _onCreate = function(instance, clazz) {
+
+    // Create a object id. This will be used to create a namespace on
+    // object event's
+    instance._id = '_id_'+(_globalObjectId++);
+
+    // Create method proxy for all clazz functions
+    for (methodName in instance) {
+      if ($.isFunction(instance[methodName])) {
+        instance[methodName] = $.proxy(instance[methodName], instance);
       }
     }
 
-    var _onDestroy = function(instance, clazz) {
-      var plugins = clazz.plugins;
-      for (var i = 0;i < plugins.length; i++) {
-        plugins[i].onDestroy.apply(plugins[i], [instance, clazz]);
-      }
+    // Execute plugins
+    var plugins = clazz.plugins;
+    for (var i = 0;i < plugins.length; i++) {
+      var plugin = plugins[i];
+      plugin.onCreate.apply(plugin, [instance, clazz]);
     }
+  }
+
+  /**
+   * Utilitary Function to call onDestroy method from plugins.
+   */
+  var _onDestroy = function(instance, clazz) {
+    var plugins = clazz.plugins;
+    for (var i = 0;i < plugins.length; i++) {
+      var plugin = plugins[i];
+      plugin.onDestroy.apply(plugin, [instance, clazz]);
+    }
+  }
 
     /**
      * Utilitary function to find a element that is a parent scope
@@ -88,15 +96,14 @@ window.Escopo = (function($) {
     $.extend(View, {
         // Add extend funcionality
         'extend' : _extend,
+        'plugins' : [],
         // Flight's like element bind
         'bindTo' : function(element, params, scope) {
             var _view = this;
             $(element).each(function(index, element) {
                 new _view(element, params, scope);
             });
-        },
-        'plugins' : [],
-        'methodPlugins' : []
+        }
     });
 
     /**
@@ -104,7 +111,6 @@ window.Escopo = (function($) {
      * ----------
      */
     var Controller = function(params, scope) {
-
         this._params = $.extend({}, params);
         this.$scope = $(scope || this.$scope || 'body');
 
@@ -113,7 +119,7 @@ window.Escopo = (function($) {
 
         // Call "initialize" method
         this.initialize(this._params, this.$scope);
-    }
+    };
 
     $.extend(Controller.prototype, {
         initialize : function() {},
@@ -125,89 +131,146 @@ window.Escopo = (function($) {
     $.extend(Controller, {
         // Add extend funcionality
         'extend' : _extend,
-        // Flight's like element bind
-        'bindTo' : function(params, scope) {
-            var _controller = this;
-            $(element).each(function(index, element) {
-                new _controller(params, scope);
-            });
-        },
         'plugins' : []
     });
 
 
-    var _MethodPlugins = {
-      'configureMethods' : function(type, instance, clazz) {
-          var methodPlugins = clazz.methodPlugins;
-          // Configure plugins
-          for (methodName in instance) {
-            if ($.isFunction(instance[methodName])) {
-              // Iterate over plugins.
-              for (var i = 0; i < methodPlugins.length; i++) {
-                methodPlugins[i][type].apply(this, [methodName, instance]);
-              }
+    /**
+     * Scope Events plugin
+     * ---------------------
+     * This plugin configure the scope events based on method names that have the pattern
+     * '$scope methodName';
+     *
+     * When the element is destroied, the scope events are removed only if 'destroy' method is called.
+     */
+    var _ScopeEventsPlugin = (function() {
+      
+      // Define the scope method regex
+      var REGEX = new RegExp("^[$]scope\\s([a-zA-Z][a-zA-Z0-9]*([:][a-zA-Z0-9_]+)*$)");
+
+      // Get the event name from method name
+      var getEventName = function(instance, methodName) {
+
+        // If isn't function or isn't a scope method, return false.
+        if (!$.isFunction(instance[methodName]) || !REGEX.test(methodName)) {
+          return false;
+        }
+        // Execute the regex on method name to retrieve the event name
+        var regexParts = REGEX.exec(methodName);
+        return regexParts[1]+'.'+instance._id;
+      }
+      
+      return {
+        'onCreate' : function(instance, clazz) {
+          var eventName;
+          for (var methodName in instance) {
+            if (eventName = getEventName(instance, methodName)) {
+              instance.$scope.on(eventName, instance[methodName]);
             }
           }
-      },
-      'onCreate' : function(instance, clazz) {
-        this.configureMethods('onCreate', instance, clazz);
-      },
-      'onDestroy' : function(instance, clazz) {
-        this.configureMethods('onDestroy', instance, clazz);
-      }
-    }
-    // Applied on View and Controller
-    View.plugins.push(_MethodPlugins);
-    View.methodPlugins = [];
-    Controller.plugins.push(_MethodPlugins);
-    Controller.methodPlugins = [];
-
-    /**
-     * Plugin to configure scope events
-     */
-    var _REGEX_SCOPE = new RegExp("^[$]scope\\s([a-zA-Z][a-zA-Z0-9]*([:][a-zA-Z0-9_]+)*$)");
-    var _ScopeEventsPlugin = {
-      'onCreate' : function(methodName, object) {
-          if (_REGEX_SCOPE.test(methodName)) {
-              var event = _REGEX_SCOPE.exec(methodName)[1]+'.'+object._id;
-              object.$scope.on(event, object[methodName]);
-          }
-      },
-      'onDestroy' : function(methodName, object) {
-        if (_REGEX_SCOPE.test(methodName)) {
-          console.log('Destruindo o evento '+methodName);
-          var event = _REGEX_SCOPE.exec(methodName)[1]+'.'+object._id;
-          object.$scope.off(event, object[methodName]);
-        }
-      }
-    } 
-    // Applied on View and Controller
-    View.methodPlugins.push(_ScopeEventsPlugin);
-    Controller.methodPlugins.push(_ScopeEventsPlugin);
-
-
-    /**
-     * Plugin to configure Element events
-     */
-    var _REGEX_EL = new RegExp("^[$]el(\\(.*\\))?\\s([a-zA-Z][a-zA-Z0-9]*([:][-a-zA-Z0-9_]+)*)$");
-    var _ElementEventsPlugin = {
-      'onCreate' : function(methodName, object) {
-         if (_REGEX_EL.test(methodName)) {
-            var regexParts = _REGEX_EL.exec(methodName);
-            var $el = object.$el;
-            if (regexParts[1]) {
-              $el = $el.find(regexParts[1].substr(1, regexParts[1].length - 2));
+        },
+        'onDestroy' : function(instance, clazz) {
+          var eventName;
+          for (var methodName in instance) {
+            if (eventName = getEventName(instance, methodName)) {
+              instance.$scope.off(eventName, instance[methodName]);
             }
-
-            $el.bind(regexParts[2], object[methodName]);
+          }
         }
-      },
-      'onDestroy' : function(methodName, object) {
-        console.log('Sera que destruo o vinculo com o elemento?');
       }
-    }
-    View.methodPlugins.push(_ElementEventsPlugin); // Applied only into views
+    })();
 
+    /**
+     * Element Events plugin
+     * ---------------------
+     * This plugins automatically configure the element methods based on method's name
+     * that have the pattern '$el eventName'.
+     *
+     * Element children can have events configured by the '$el(child path) eventName'
+     *
+     */
+    var _ElementEventsPlugin = (function() {
+
+      // Expression language
+      var REGEX = new RegExp("^[$]el(\\(.*\\))?\\s([a-zA-Z][a-zA-Z0-9]*([:][-a-zA-Z0-9_]+)*)$");
+      
+      // Realize the parse of method. 
+      var parseMethod = function(instance, methodName) {
+
+        // If isn't function or isn't a element method, return false.
+        if (!$.isFunction(instance[methodName]) || !REGEX.test(methodName)) {
+          return false;
+        }
+
+        // Execute the regex to retrieve the element path
+        var regexParts = REGEX.exec(methodName);
+        // Retrieve the event name, and include the namespace of the element
+        // The namespace will guarantee that the correct event will be removed 
+        // from the scope.
+        var eventName = regexParts[2]+'.'+instance._id;
+        // Mark the event where a parent event
+        var childEvent = false;
+        var $el = instance.$el;
+        // Find children elements
+        if (regexParts[1]) {
+          childEvent = true;
+          $el = $el.find(regexParts[1].substr(1, regexParts[1].length - 2));
+        }
+
+        return {'element' : $el, 'eventName' : eventName, 'childEvent' : childEvent};
+      };
+
+      // Function that configure only child event's.
+      // These can be used when the element renderize templates.
+      var _childEvents = function(instance) {
+        var info;
+        for (var methodName in instance) {
+          var info = parseMethod(instance, methodName);
+          if (info && info.childEvent) {
+            info.element.on(info.eventName, instance[methodName]);
+          }
+        }
+      }
+
+      // Retrieve the plugin method's
+      return {
+        
+        'onCreate' : function(instance) {
+          var info;
+          for (var methodName in instance) {
+            info = parseMethod(instance, methodName);
+            if (info) {
+              info.element.on(info.eventName, instance[methodName]);
+            }
+          }
+          
+          // Add on instance a method to configure child events
+          instance.childEvents = function() {
+            _childEvents(this);
+          };
+
+        },
+        // On destroy the instance, remove all configured bindings.
+        'onDestroy' : function(instance) {
+          var info;
+          for (var methodName in instance) {
+            info = parseMethod(instance, methodName);
+            if (info) {
+              info.element.off(info.eventName, instance[methodName]);
+            }
+          }
+        }
+      }
+
+    })();
+
+
+    // Configure View plugins
+    View.plugins.push(_ScopeEventsPlugin);
+    View.plugins.push(_ElementEventsPlugin);
+
+    // Configure Controller plugins
+    Controller.plugins.push(_ScopeEventsPlugin);
 
     return {
       'View' : View,

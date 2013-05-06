@@ -6,7 +6,9 @@ define(['escopo','lib/path'], function(Escopo, Path){
     // Route Method Plugin
     var _RoutePlugin = {
 
-        'onCreate' : function(methodName, object) {
+        'onCreate' : function(instance) {
+
+            for (var methodName in instance) {
             // Test if the method is a route
             if (_REGEX_ROUTE.test(methodName)) {
 
@@ -19,27 +21,25 @@ define(['escopo','lib/path'], function(Escopo, Path){
                     // Retrieve the route parameters
                     var routeParams = this.params;
 
-                    // If object has $scope, trigger a change event 
-                    if (object.$scope) {
-                        object.$scope.trigger('route:change', [routePath, routeParams]);
+                    // If instance has $scope, trigger a change event 
+                    if (instance.$scope) {
+                        instance.$scope.trigger('route:change', [routePath, routeParams]);
                     }
 
                     // Call original method
-                    object[methodName].apply(object, [routeParams]);
+                    instance[methodName].apply(instance, [routeParams]);
                 });
             }
-        },
-        'onDestroy' : function(methodName, object) {
-            // Test if the method is a route
-            if (_REGEX_ROUTE.test(methodName)) {
-                console.log('Removendo a rota '+methodName);
             }
+        },
+        'onDestroy' : function(instance) {
+
         }
     }
 
     // Configure the Route into Controller and View
-    Escopo.Controller.methodPlugins.push(_RoutePlugin);
-    Escopo.View.methodPlugins.push(_RoutePlugin);
+    Escopo.Controller.plugins.push(_RoutePlugin);
+    Escopo.View.plugins.push(_RoutePlugin);
 
     return Escopo;
 

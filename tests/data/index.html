@@ -3,6 +3,9 @@
         <link rel="stylesheet" href="bootstrap/css/bootstrap.min.css" ></link>
     </head>
     <body>
+        
+
+        <div id="porque"></div>
 
         <a href="#list">Listar</a>
         <a href="#limpa">Limpar</a>
@@ -43,12 +46,20 @@
                    },
                    'render' : function() {
                      this.$el.html(this.template(this._model));
-                     this.$el.find('input').change(this.updateStatus);
-                     this.$el.find('a').click(this.remove);
+                     //this.$el.find('input').change(this.updateStatus);
+                     //this.$el.find('a').click(this.remove);
                      // Check the checkbox if todo item is ready
                      if (this._model.ready) {
                        this.$el.find('input').attr('checked', 'checked');
                      }
+
+                     this.childEvents();
+                   },
+                   '$el(input) change' : function() {
+                     this.updateStatus();
+                   },
+                   '$el(a) click' : function() {
+                     this.remove();
                    },
                    'remove' : function() {
                       this.$scope.trigger('data:remove', [this._model.id]);
